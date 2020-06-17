@@ -47,6 +47,7 @@ Shader "PBR/DisneyPrincipledBRDF/StandardTexture.Shader"
         LOD 200
         Pass{
             CGPROGRAM
+            /*
             #pragma vertex vert
             #pragma fragment frag 
             #pragma target 3.0
@@ -98,6 +99,7 @@ Shader "PBR/DisneyPrincipledBRDF/StandardTexture.Shader"
                 float3 final = gi.light.color * brdf * albedo;
                 return float4(final, 1);
             }
+            */
             ENDCG
         }
     }

@@ -108,12 +108,12 @@ Sheen：for cloth，即对回射的增强，前面说织物的grazing 回射要�
 Clearcoat：第二层高光分布
 clearcoatGloss ：控制clearcoat的gloss
 */
-float3 BRDF( float3 L, float3 V, float3 N, float3 X, float3 Y, float3 baseColor,
+float3 BRDF(float3 L, float3 V, float3 N, float3 X, float3 Y, float3 baseColor,
             float metallic, float roughness, 
             float specular, float3 specularTint, 
             float sheen, float3 sheenTint,
             float clearcoat, float clearcoatGloss,
-            float subsurface, float anisotropic)
+            float subsurface, float anisotropic, float ggx)
 {
     float NdotL = max(dot(N,L),0.0);
     float NdotV = max(dot(N,V),0.0);
@@ -168,16 +168,16 @@ float3 BRDF( float3 L, float3 V, float3 N, float3 X, float3 Y, float3 baseColor,
     float ax = max(.001, sqr(roughness) / aspect);
     float ay = max(.001, sqr(roughness) * aspect);
     float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
-    float FH = SchlickFresnel(LdotH);
-    //float FH = DisneyFresnel(NdotL, NdotV, LdotH, roughness);
+    //float FH = SchlickFresnel(LdotH);
+    float FH = DisneyFresnel(NdotL, NdotV, LdotH, roughness);
     float3 Fs = lerp(Cspec0, float3(1,1,1), FH);
     //return Fs;
     float Gs = 1;
-    Gs  = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
-    Gs = smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
+    Gs = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
+    Gs *= smithG_GGX_aniso(NdotV, dot(V, X), dot(V, Y), ax, ay);
     //Gs  = SmithJoint(NdotL, NdotV, roughness);
     //Gs *= SmithJoint(NdotV, NdotV, roughness);
-    
+    //return float3(Gs, Gs, Gs);
     // sheen
     float3 Fsheen = FH * sheen * Csheen;
     
@@ -187,9 +187,9 @@ float3 BRDF( float3 L, float3 V, float3 N, float3 X, float3 Y, float3 baseColor,
     float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
     float3 Final = (1.0/UNITY_PI) * lerp(Fd, sss, subsurface) * Cdlin + Fsheen;
     //return Final;
-    float GGG = (1.0 - metallic) + Gs * Fs * Ds + .25 * clearcoat * Gr * Fr * Dr;
+    float GGG = (1.0 - metallic) + (Gs * Fs * Ds) + (.25 * clearcoat * Gr * Fr * Dr);
     //return GGG;
-    return Final * GGG;
+    return Final * saturate(GGG);
 }
 
 float3 SSS(float3 L, float3 V, float3 N, float3 lightColor,
@@ -197,22 +197,21 @@ float3 SSS(float3 L, float3 V, float3 N, float3 lightColor,
     float scatterScale, float3 sssColor)
 {
     float3 sss = 0;
-    float delta = 1 / num;
-    float3 lastN = N;
-    float dir = lerp(1, -1, step(scatterRadius, 0));
-    for(int i = 0; i < num; i++)
-    {
-        int index = i + 1;
-        float3 noise = tex2D(_NoiseTex, float2(index * delta,index * (1 - delta))).rgb;
-        float3 rN = normalize(noise + lastN);
-        lastN = N;
-        float3 sH = normalize(L + rN * (scatterRadius));
-        //float sH = normalize(lightDirection + viewDirection *_ScatterRadius);
-        float sVdotH = pow(saturate(dot(V, dir * sH)), scatterPower * 10) * (scatterScale * 0.5);
+    //float delta = 1 / num;
+    //float3 lastN = N;
+    //float dir = lerp(1, -1, step(scatterRadius, 0));
+    //for(int i = 0; i < num; i++)
+    //{
+        //int index = i + 1;
+        //float3 noise = tex2D(_NoiseTex, float2(index * delta,index * (1 - delta))).rgb;
+        //float3 rN = normalize(noise + lastN);
+        //lastN = N;
+        float3 sH = normalize(L + N * scatterRadius);
+        float sVdotH = pow(saturate(dot(V, -sH)), scatterPower * 100) * scatterScale;
         //sss += gi.light.color * sssColor * sVdotH * _ScatterThickness;
-        sss += lightColor * sssColor * sVdotH;// * (1 - occlusion);
+        sss += sssColor * sVdotH;// * (1 - occlusion);
         //sss = gi.light.color * _ScatterColor.rgb * sVdotH;// * (1 - occlusion);
-    }
+    //}
     return sss;
 }
 
